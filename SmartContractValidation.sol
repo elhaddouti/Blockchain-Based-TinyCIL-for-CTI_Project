@@ -22,7 +22,7 @@ contract CTIValidation {
         validators = _validators;
     }
 
-    function submitCTI(CTIResult memory ctiResult) public returns (bool) {
+    function validateCTI(CTIResult memory ctiResult) public returns (bool) {
         // Validation Process
         bool isFormatValid = checkRequiredFields(ctiResult);
         if (!isFormatValid) {
@@ -93,7 +93,7 @@ contract CTIValidation {
     aggregatedCTI.push(ctiResult);
     }
 
-    function validate(address validator, CTIResult memory ctiResult) internal view returns (bool) {
+    function consensus(address validator, CTIResult memory ctiResult) internal view returns (bool) {
         bool isValidator = false;
         for (uint256 i = 0; i < validators.length; i++) {
             if (validators[i] == validator) {
