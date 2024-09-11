@@ -17,11 +17,17 @@ contract CTIValidation {
     CTIResult[] public aggregatedCTI;
     address[] public validators;
     mapping(bytes32 => bool) public existingRecords;
+    mapping(string => address) public deviceAddress; // Maps DeviceID to Ethereum address
 
     event CTIValidationResult(bool isValid, string message);
 
     constructor(address[] memory _validators) {
         validators = _validators;
+    }
+
+    // Register a device with a DeviceID and Ethereum address
+    function registerDevice(string memory deviceId, address deviceAddr) public {
+        deviceAddress[deviceId] = deviceAddr;
     }
 
     function validateCTI(CTIResult memory ctiResult) public returns (bool) {
@@ -83,9 +89,17 @@ contract CTIValidation {
         return !existingRecords[hash];
     }
 
-    function verifyDigitalSignature(CTIResult memory ctiResult) internal pure returns (bool) {
-        // Simplified verification (real verification would require off-chain computation)
-        return true;
+    // Verify the signature using the helper function `recoverSigner`
+    function verifyDigitalSignature(CTIResult memory ctiResult) internal view returns (bool) {
+        bytes32 messageHash = keccak256(abi.encodePacked(ctiResult.Timestamp, ctiResult.DeviceID, ctiResult.ThreatType));
+        address recoveredSigner = recoverSigner(messageHash, ctiResult.v, ctiResult.r, ctiResult.s);
+        return deviceAddress[ctiResult.DeviceID] == recoveredSigner;
+    }
+
+    // Helper function to recover the signer from the signature
+    function recoverSigner(bytes32 messageHash, uint8 v, bytes32 r, bytes32 s) internal pure returns (address) {
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        return ecrecover(ethSignedMessageHash, v, r, s);
     }
 
     function aggregateCTI(CTIResult memory ctiResult) internal {
