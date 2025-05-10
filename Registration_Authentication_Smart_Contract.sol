@@ -37,10 +37,11 @@ contract RASC {
 
     constructor(address _verifierAddress) {
         verifier = IZKVerifier(_verifierAddress); // VK_{zk}' is hardcoded in that verifier
-        vsscContract = 0x1234567890aBcDEF1234567890abCDef12345678;
+        address public vsscContract = 0x1234567890aBcDEF1234567890abCDef12345678;
+        address public acscContract = 0x2345678890Def123BcDEF1234abCDef123567890;
     }
 
-    // Registration phase: unchanged
+    // Registration of IIoT devices
     function registerDevice(bytes32 deviceID, uint256 unitID)
         external
         returns (
@@ -107,6 +108,47 @@ contract RASC {
             revert("Invalid zk-SNARK proof. Device blacklisted.");
         }
     }
+// Registration of participants
+unction registerParticipant(
+    bytes32 pubKey,
+    string calldata role,
+    uint256[] calldata unitIDs
+) external {
+    require(!participants[msg.sender].isRegistered, "Already registered");
+
+    // Store participant info
+    participants[msg.sender] = Participant({
+        walletAddress: msg.sender,
+        pubKey: pubKey,
+        role: role,
+        unitIDs: unitIDs,
+        isRegistered: true
+    });
+
+    emit ParticipantRegistered(msg.sender, role, pubKey, unitIDs);
+
+    // Trigger ACSC execution after successful registration
+    triggerACSC(msg.sender, pubKey, role, unitIDs);
+}
+
+// Internal function to trigger ACSC smart contract with participant data
+function triggerACSC(
+    address walletAddress,
+    bytes32 pubKey,
+    string memory role,
+    uint256[] memory unitIDs
+) internal {
+    (bool success, ) = acscContract.call(
+        abi.encodeWithSignature(
+            "verifyParticipant(address,bytes32,string,uint256[])",
+            walletAddress,
+            pubKey,
+            role,
+            unitIDs
+        )
+    );
+    require(success, "ACSC execution failed");
+}
 // Function to validate zk-SNARK proof for CTI data and Access Token
     function validateCTIProof(
         bytes32 deviceID,
