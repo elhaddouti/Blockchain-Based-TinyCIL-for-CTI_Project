@@ -37,6 +37,7 @@ contract RASC {
 
     constructor(address _verifierAddress) {
         verifier = IZKVerifier(_verifierAddress); // VK_{zk}' is hardcoded in that verifier
+        vsscContract = 0x1234567890aBcDEF1234567890abCDef12345678;
     }
 
     // Registration phase: unchanged
@@ -105,5 +106,56 @@ contract RASC {
             emit ZKProofFailed(deviceID);
             revert("Invalid zk-SNARK proof. Device blacklisted.");
         }
+    }
+// Function to validate zk-SNARK proof for CTI data and Access Token
+    function validateCTIProof(
+        bytes32 deviceID,
+        uint256[2] calldata a,           // π'.a
+        uint256[2][2] calldata b,        // π'.b
+        uint256[2] calldata c,           // π'.c
+        bytes memory accessToken        // Access Token (contains deviceID, permissions, expiration time)
+    ) external returns (bool) {
+        // Step 1: Validate Access Token
+        (bytes32 tokenDeviceID, uint256 expirationTime, bool isValid) = decodeAccessToken(accessToken);
+        
+        if (!isValid || tokenDeviceID != deviceID || block.timestamp > expirationTime) {
+            // Invalid or expired Access Token
+            blacklistedDevices[deviceID] = true;
+            emit DeviceBlacklisted(deviceID);
+            return false;
+        }
+
+        // Step 2: Verify zk-SNARK proof for CTI data
+        VerifyingContract verifier = VerifyingContract(verifierContract);
+        
+        bool proofValid = verifier.verifyProof(a, b, c, deviceID);
+
+        if (proofValid) {
+            // If both the proof and the access token are valid, trigger VSSC
+            triggerVSSC(deviceID);
+            return true;
+        } else {
+            // If the proof verification fails, blacklist the device
+            blacklistedDevices[deviceID] = true;
+            emit DeviceBlacklisted(deviceID);
+            return false;
+        }
+    }
+
+    // Helper function to decode access token
+    function decodeAccessToken(bytes memory token) public pure returns (bytes32 deviceID, uint256 expirationTime, bool isValid) {
+        // Decode the access token
+        (deviceID, expirationTime) = abi.decode(token, (bytes32, uint256));
+// For simplicity, just return that it's valid if expiration time is in the future
+        isValid = expirationTime > block.timestamp;
+    }
+
+    // Function to trigger VSSC (if both proof and token are valid)
+    function triggerVSSC(bytes32 deviceID) internal {
+        // Here you would trigger the VSSC contract with the deviceID and any necessary data.
+        // Placeholder for business logic, specifying VSSC contract address
+        // Call the VSSC contract to initiate the process (you can add parameters as necessary)
+        (bool success, ) = vsscContract.call(abi.encodeWithSignature("startVSSCProcess(bytes32)", deviceID));
+        require(success, "VSSC trigger failed");
     }
 }
